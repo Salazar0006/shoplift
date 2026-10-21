@@ -34,7 +34,14 @@ let inMemoryProducts = [
 export const getProducts = async (req, res) => {
   try {
     if (checkDBStatus()) {
-      const products = await Product.find().sort({ createdAt: -1 });
+      let products = await Product.find().sort({ createdAt: -1 });
+      if (products.length === 0) {
+        // Automatically seed demo products into Atlas on first connect
+        const seeded = await Product.insertMany(
+          inMemoryProducts.map(({ _id, createdAt, ...rest }) => rest)
+        );
+        return res.status(200).json(seeded);
+      }
       return res.status(200).json(products);
     }
     res.status(200).json(inMemoryProducts);
