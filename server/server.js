@@ -16,12 +16,31 @@ import productRoutes from "./routes/productRoutes.js";
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS for all origins
-app.use(cors());
+// Enable CORS for all origins, allow credentials & handle preflights
+app.use(
+  cors({
+    origin: true,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  })
+);
 
 // Set JSON body limit to 10MB to accommodate Base64 image payloads
 app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+// Serverless DB Middleware: Ensure MongoDB is connected on incoming requests
+app.use(async (req, res, next) => {
+  if (!checkDBStatus()) {
+    try {
+      await connectDB();
+    } catch {
+      // Handled gracefully inside connectDB
+    }
+  }
+  next();
+});
 
 // Health Check / API Status
 app.get("/", (req, res) => {
@@ -52,18 +71,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start Server immediately so frontend never receives connection refused
-app.listen(PORT, async () => {
-  console.log(`\n✓ ShowCase Server running on port ${PORT}`);
-  console.log(`✓ API URL: http://localhost:${PORT}/api/products`);
-  
-  // Attempt Database Connection
-  const connected = await connectDB();
-  if (!connected) {
-    // Retry every 10 seconds in background
-    const interval = setInterval(async () => {
-      const ok = await connectDB();
-      if (ok) clearInterval(interval);
-    }, 10000);
-  }
-});
+// Only run app.listen in persistent environments (Local / Render). In Vercel serverless, app is exported.
+if (!process.env.VERCEL) {
+  app.listen(PORT, "0.0.0.0", async () => {
+    console.log(`\n✓ ShowCase Server running on port ${PORT}`);
+    console.log(`✓ API URL: http://localhost:${PORT}/api/products`);
+    
+    // Attempt Database Connection
+    const connected = await connectDB();
+    if (!connected) {
+      // Retry every 10 seconds in background
+      const interval = setInterval(async () => {
+        const ok = await connectDB();
+        if (ok) clearInterval(interval);
+      }, 10000);
+    }
+  });
+}
+
+export default app;

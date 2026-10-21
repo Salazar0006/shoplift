@@ -5,6 +5,11 @@ let isConnected = false;
 let hasWarnedPlaceholder = false;
 
 export const connectDB = async () => {
+  if (mongoose.connection.readyState >= 1) {
+    isConnected = true;
+    return true;
+  }
+
   const uri = process.env.MONGODB_URI;
 
   if (!uri) {
